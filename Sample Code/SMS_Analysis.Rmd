@@ -1,0 +1,133 @@
+---
+title: "SMS Sentiment Analysis"
+output: html_notebook
+editor_options: 
+  chunk_output_type: inline
+---
+
+First we load the data.
+
+```{r}
+library(dplyr)
+library(tidytext)
+library(ggplot2)
+
+CanadaSMS <- read.table("CANSMS.csv", 
+                        header=TRUE,
+                        sep=",",
+                        fill=TRUE,
+                        stringsAsFactors = FALSE,
+                        quote = "")
+
+USASMS <- read.table("USSMS.csv", 
+                        header=TRUE,
+                        sep=",",
+                        fill=TRUE,
+                        stringsAsFactors = FALSE,
+                        quote = "")
+head(CanadaSMS)
+head(USASMS)
+```
+
+Now, we select only the non-empty SMS.
+
+```{r}
+
+CanMessages <- CanadaSMS %>% 
+  select(IsmText) %>% 
+  filter(IsmText != "") %>% 
+  as.vector()
+
+USMessages <- USASMS %>% 
+  select(IsmText) %>% 
+  filter(IsmText != "") %>% 
+  as.vector()
+
+```
+
+We load a library of "stop words" which we want to exclude.
+
+```{r}
+data("stop_words")
+```
+
+We tidy up the messages to have one word per row, and we remove stop words.
+
+```{r}
+CanMessages <- data_frame(line = 1:nrow(CanMessages), text=CanMessages$IsmText)
+USMessages <- data_frame(line = 1:nrow(USMessages), text=USMessages$IsmText)
+
+tidy_cAN_sms <- CanMessages %>% 
+  unnest_tokens(word, text) %>% 
+  anti_join(stop_words, by = "word")
+
+tidy_us_sms <- USMessages %>% 
+  unnest_tokens(word, text)%>% 
+  anti_join(stop_words, by = "word")
+
+```
+
+We now go an get the sentiments from the BING repository, and affix them to each word.
+
+```{r}
+bing_word_counts_CAN <- tidy_cAN_sms %>% 
+  inner_join(get_sentiments("bing"), by = "word") %>% 
+  count(word, sentiment, sort = TRUE) %>% 
+  ungroup()
+
+bing_word_counts_US <- tidy_us_sms %>% 
+  inner_join(get_sentiments("bing"), by = "word") %>% 
+  count(word, sentiment, sort = TRUE) %>% 
+  ungroup()
+```
+
+And we can now graphs for Canada.
+
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+bing_word_counts_CAN %>% 
+  group_by(sentiment) %>% 
+  top_n(15) %>% 
+  ungroup() %>% 
+  mutate(word=reorder(word,n)) %>% 
+  ggplot(aes(word, n, fill=sentiment))+
+  geom_col(show.legend=FALSE)+
+  facet_wrap(~sentiment, scales = "free_y") +
+  labs(title = "Contribution to sentiment - SMS Canada",
+       x=NULL,
+       y= "Frequency")+
+  coord_flip()
+```
+
+And for the US.
+
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+bing_word_counts_US %>% 
+  group_by(sentiment) %>% 
+  top_n(15) %>% 
+  ungroup() %>% 
+  mutate(word=reorder(word,n)) %>% 
+  ggplot(aes(word, n, fill=sentiment))+
+  geom_col(show.legend=FALSE)+
+  facet_wrap(~sentiment, scales = "free_y") +
+  labs(title = "Contribution to sentiment - SMS USA",
+       x=NULL,
+       y="Frequency")+
+  coord_flip()
+```
+
+In order to classify into topics, we would need a table that links specific words to specific topics. Because we do not have that on hand, I will create here the list of words (no stop words) with their frequencies.
+
+```{r}
+CanadaList <- as.data.frame(table(tidy_cAN_sms$word)) %>% 
+  arrange(desc(Freq)) %>% 
+  filter(Freq >4)
+
+USList <- as.data.frame(table(tidy_us_sms$word)) %>% 
+  arrange(desc(Freq)) %>% 
+  filter(Freq > 4)
+
+write.csv(CanadaList, file = "CanadaWordFrequencies.csv")
+write.csv(USList, file = "USWordsFrequencies.csv")
+
+```
+

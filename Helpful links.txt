@@ -1,0 +1,8 @@
+How to create multi-graphs pages and lots of options
+	http://www.sthda.com/english/wiki/wiki.php?id_contents=7930
+
+Nice tables in markdown
+	https://cran.r-project.org/web/packages/kableExtra/vignettes/awesome_table_in_html.html
+
+Text mining
+	https://www.tidytextmining.com/
